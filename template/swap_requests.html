@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}My Swaps - Skill Swap Platform{% endblock %}
+
+{% block content %}
+
+<canvas id="dotsCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+<h2 class="mb-4">
+    <i class="fas fa-handshake me-2"></i>My Skill Swaps
+</h2>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-paper-plane me-2"></i>Sent Requests ({{ sent_requests|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if sent_requests %}
+                    {% for swap in sent_requests %}
+                    <div class="border-bottom py-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <strong>{{ swap.offered_skill }}</strong> ↔ <strong>{{ swap.wanted_skill }}</strong>
+                                </h6>
+                                <p class="text-muted small mb-1">
+                                    To: {{ swap.provider.name or swap.provider.username }}
+                                </p>
+                                <p class="text-muted small mb-2">
+                                    {{ swap.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                </p>
+                                {% if swap.message %}
+                                <p class="small mb-2">{{ swap.message }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <span class="badge 
+                                    {% if swap.status == 'pending' %}bg-warning{% endif %}
+                                    {% if swap.status == 'accepted' %}bg-success{% endif %}
+                                    {% if swap.status == 'rejected' %}bg-danger{% endif %}
+                                    {% if swap.status == 'completed' %}bg-info{% endif %}">
+                                    {{ swap.status.title() }}
+                                </span>
+                                
+                                <div class="mt-2">
+                                    {% if swap.status == 'pending' %}
+                                    <a href="{{ url_for('cancel_swap_request', swap_id=swap.id) }}" 
+                                       class="btn btn-outline-danger btn-sm"
+                                       onclick="return confirm('Are you sure you want to cancel this request?')">
+                                        Cancel
+                                    </a>
+                                    {% elif swap.status == 'accepted' %}
+                                    <a href="{{ url_for('complete_swap', swap_id=swap.id) }}" 
+                                       class="btn btn-success btn-sm">
+                                        Mark Complete
+                                    </a>
+                                    {% elif swap.status == 'completed' %}
+                                    {% set user_rating = get_rating_for_swap(session.user_id, swap.id) %}
+                                    {% if not user_rating %}
+                                    <button type="button" class="btn btn-warning btn-sm" 
+                                            data-bs-toggle="modal" data-bs-target="#ratingModal{{ swap.id }}">
+                                        Rate User
+                                    </button>
+                                    {% else %}
+                                    <small class="text-muted">Rated</small>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    No sent requests yet. <a href="{{ url_for('browse') }}">Browse skills</a> to get started!
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-inbox me-2"></i>Received Requests ({{ received_requests|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if received_requests %}
+                    {% for swap in received_requests %}
+                    <div class="border-bottom py-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <strong>{{ swap.wanted_skill }}</strong> ↔ <strong>{{ swap.offered_skill }}</strong>
+                                </h6>
+                                <p class="text-muted small mb-1">
+                                    From: {{ swap.requester.name or swap.requester.username }}
+                                </p>
+                                <p class="text-muted small mb-2">
+                                    {{ swap.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                </p>
+                                {% if swap.message %}
+                                <p class="small mb-2">{{ swap.message }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <span class="badge 
+                                    {% if swap.status == 'pending' %}bg-warning{% endif %}
+                                    {% if swap.status == 'accepted' %}bg-success{% endif %}
+                                    {% if swap.status == 'rejected' %}bg-danger{% endif %}
+                                    {% if swap.status == 'completed' %}bg-info{% endif %}">
+                                    {{ swap.status.title() }}
+                                </span>
+                                
+                                <div class="mt-2">
+                                    {% if swap.status == 'pending' %}
+                                    <form method="POST" action="{{ url_for('respond_swap_request') }}" class="d-inline">
+                                        <input type="hidden" name="swap_id" value="{{ swap.id }}">
+                                        <button type="submit" name="action" value="accept" 
+                                                class="btn btn-success btn-sm">Accept</button>
+                                        <button type="submit" name="action" value="reject" 
+                                                class="btn btn-outline-danger btn-sm">Reject</button>
+                                    </form>
+                                    {% elif swap.status == 'accepted' %}
+                                    <a href="{{ url_for('complete_swap', swap_id=swap.id) }}" 
+                                       class="btn btn-success btn-sm">
+                                        Mark Complete
+                                    </a>
+                                    {% elif swap.status == 'completed' %}
+                                    {% set user_rating = get_rating_for_swap(session.user_id, swap.id) %}
+                                    {% if not user_rating %}
+                                    <button type="button" class="btn btn-warning btn-sm" 
+                                            data-bs-toggle="modal" data-bs-target="#ratingModal{{ swap.id }}">
+                                        Rate User
+                                    </button>
+                                    {% else %}
+                                    <small class="text-muted">Rated</small>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    No received requests yet. Make sure your profile is public and has skills listed!
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rating Modals -->
+{% for swap in sent_requests + received_requests %}
+{% if swap.status == 'completed' %}
+<div class="modal fade" id="ratingModal{{ swap.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rate Your Experience</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('rate_user') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="swap_id" value="{{ swap.id }}">
+                    
+                    <div class="text-center mb-3">
+                        <h6>How was your skill swap with 
+                            {% if swap.requester_id == session.user_id %}
+                                {{ swap.provider.username }}
+                            {% else %}
+                                {{ swap.requester.username }}
+                            {% endif %}?
+                        </h6>
+                    </div>
+                    
+                    <div class="mb-3 text-center">
+                        <label class="form-label">Rating:</label>
+                        <div class="rating-input">
+                            {% for i in range(1, 6) %}
+                            <input type="radio" name="rating" value="{{ i }}" id="rating{{ swap.id }}_{{ i }}" required>
+                            <label for="rating{{ swap.id }}_{{ i }}" class="star-label">
+                                <i class="fas fa-star"></i>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="feedback{{ swap.id }}" class="form-label">Feedback (optional):</label>
+                        <textarea class="form-control" id="feedback{{ swap.id }}" name="feedback" rows="3"
+                                  placeholder="Share your experience with this skill swap..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Rating</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+.rating-input {
+    direction: rtl;
+    display: inline-block;
+}
+
+.rating-input input[type="radio"] {
+    display: none;
+}
+
+.rating-input .star-label {
+    color: #ddd;
+    font-size: 1.5em;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.rating-input .star-label:hover,
+.rating-input .star-label:hover ~ .star-label,
+.rating-input input[type="radio"]:checked ~ .star-label {
+    color: #ffc107;
+}
+</style>
+
+<script>
+
+(function() {
+    const canvas = document.getElementById('dotsCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let dots = [];
+    let mouse = { x: 0, y: 0 };
+    let animationId;
+    
+    
+    const config = {
+        dotCount: 80,
+        maxDistance: 120,
+        dotSize: 2,
+        dotColor: 'rgba(59, 130, 246, 0.6)', 
+        lineColor: 'rgba(59, 130, 246, 0.3)',
+        mouseRadius: 150,
+        speed: 0.5
+    };
+    
+    
+    class Dot {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * config.speed;
+            this.vy = (Math.random() - 0.5) * config.speed;
+            this.radius = config.dotSize;
+        }
+        
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            
+           
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            
+            
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+        }
+        
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = config.dotColor;
+            ctx.fill();
+        }
+    }
+    
+    
+    function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        
+        dots = [];
+        for (let i = 0; i < config.dotCount; i++) {
+            dots.push(new Dot());
+        }
+    }
+    
+   
+    function drawConnections() {
+        for (let i = 0; i < dots.length; i++) {
+            for (let j = i + 1; j < dots.length; j++) {
+                const dx = dots[i].x - dots[j].x;
+                const dy = dots[i].y - dots[j].y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < config.maxDistance) {
+                    const opacity = 1 - (distance / config.maxDistance);
+                    ctx.strokeStyle = config.lineColor.replace('0.3', opacity * 0.3);
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(dots[i].x, dots[i].y);
+                    ctx.lineTo(dots[j].x, dots[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+    
+    
+    function drawMouseConnections() {
+    for (let dot of dots) {
+        const dx = mouse.x - dot.x;
+        const dy = mouse.y - dot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < config.mouseRadius) {
+            const opacity = 1 - (distance / config.mouseRadius);
+            ctx.strokeStyle = `rgba(59, 130, 246, ${opacity * 0.5})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(dot.x, dot.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+            
+           
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, config.dotSize * (1 + opacity * 0.5), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(59, 130, 246, ${opacity * 0.8})`;
+            ctx.fill();
+        }
+    }
+}
+
+    
+   
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        
+        for (let dot of dots) {
+            dot.update();
+            dot.draw();
+        }
+        
+         
+        drawConnections();
+        drawMouseConnections();
+        
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    
+    window.addEventListener('resize', () => {
+        initCanvas();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+    
+    
+    initCanvas();
+    animate();
+    
+    
+    window.addEventListener('beforeunload', () => {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+    });
+})();
+</script>
+
+{% endblock %}
