@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name or user.username }} - Skill Swap Platform{% endblock %}
+
+{% block content %}
+
+<canvas id="dotsCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                {% if user.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/' + user.profile_photo) }}" 
+                     alt="Profile Photo" class="profile-photo mb-3">
+                {% else %}
+                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 profile-photo">
+                    <i class="fas fa-user fa-3x text-light"></i>
+                </div>
+                {% endif %}
+                
+                <h4>{{ user.name or user.username }}</h4>
+                <p class="text-muted">@{{ user.username }}</p>
+                
+                {% if user.location %}
+                <p class="text-muted">
+                    <i class="fas fa-map-marker-alt me-1"></i>{{ user.location }}
+                </p>
+                {% endif %}
+                
+                {% if avg_rating > 0 %}
+                <div class="rating-stars mb-3">
+                    {% for i in range(5) %}
+                        {% if i < avg_rating %}
+                            <i class="fas fa-star"></i>
+                        {% else %}
+                            <i class="far fa-star"></i>
+                        {% endif %}
+                    {% endfor %}
+                    <span class="ms-2 text-muted">({{ "%.1f"|format(avg_rating) }}) • {{ ratings|length }} reviews</span>
+                </div>
+                {% endif %}
+                
+                {% if session.user_id and session.user_id != user.id and can_request %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#swapModal">
+                    <i class="fas fa-handshake me-2"></i>Request Skill Swap
+                </button>
+                {% elif session.user_id and session.user_id != user.id and not can_request %}
+                <p class="text-muted">
+                    <i class="fas fa-clock me-1"></i>Swap request pending
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if user.availability %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-clock me-2"></i>Availability
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for time in user.availability %}
+                <span class="skill-badge">{{ time }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tools me-2"></i>Skills Offered
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if skills.offered %}
+                    {% for skill in skills.offered %}
+                    <span class="skill-badge bg-success">{{ skill }}</span>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted">No skills offered yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-graduation-cap me-2"></i>Skills Wanted
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if skills.wanted %}
+                    {% for skill in skills.wanted %}
+                    <span class="skill-badge bg-info">{{ skill }}</span>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted">No learning goals listed.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if ratings %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-star me-2"></i>Reviews ({{ ratings|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for rating in ratings[:10] %}
+                <div class="border-bottom py-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="rating-stars">
+                                {% for i in range(5) %}
+                                    {% if i < rating.rating %}
+                                        <i class="fas fa-star"></i>
+                                    {% else %}
+                                        <i class="far fa-star"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">by {{ rating.rater.username }}</small>
+                        </div>
+                        <small class="text-muted">{{ rating.created_at.strftime('%b %d, %Y') }}</small>
+                    </div>
+                    {% if rating.feedback %}
+                    <p class="mt-2 mb-0">{{ rating.feedback }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if session.user_id and session.user_id != user.id and can_request %}
+<!-- Swap Request Modal -->
+<div class="modal fade" id="swapModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Request Skill Swap</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('send_swap_request') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="provider_id" value="{{ user.id }}">
+                    
+                    <div class="mb-3">
+                        <label for="offered_skill" class="form-label">I can offer:</label>
+                        <input type="text" class="form-control" id="offered_skill" name="offered_skill" 
+                               placeholder="What skill can you teach?" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="wanted_skill" class="form-label">I want to learn:</label>
+                        <select class="form-select" id="wanted_skill" name="wanted_skill" required>
+                            <option value="">Choose a skill...</option>
+                            {% for skill in skills.offered %}
+                            <option value="{{ skill }}">{{ skill }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message (optional):</label>
+                        <textarea class="form-control" id="message" name="message" rows="3"
+                                  placeholder="Tell them why you'd like to learn this skill or any other details..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+
+(function() {
+    const canvas = document.getElementById('dotsCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let dots = [];
+    let mouse = { x: 0, y: 0 };
+    let animationId;
+    
+    
+    const config = {
+        dotCount: 80,
+        maxDistance: 120,
+        dotSize: 2,
+        dotColor: 'rgba(59, 130, 246, 0.6)',
+        lineColor: 'rgba(59, 130, 246, 0.3)',
+        mouseRadius: 150,
+        speed: 0.5
+    };
+    
+    
+    class Dot {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * config.speed;
+            this.vy = (Math.random() - 0.5) * config.speed;
+            this.radius = config.dotSize;
+        }
+        
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            
+           
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            
+            
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+        }
+        
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = config.dotColor;
+            ctx.fill();
+        }
+    }
+    
+    
+    function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        
+        dots = [];
+        for (let i = 0; i < config.dotCount; i++) {
+            dots.push(new Dot());
+        }
+    }
+    
+   
+    function drawConnections() {
+        for (let i = 0; i < dots.length; i++) {
+            for (let j = i + 1; j < dots.length; j++) {
+                const dx = dots[i].x - dots[j].x;
+                const dy = dots[i].y - dots[j].y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < config.maxDistance) {
+                    const opacity = 1 - (distance / config.maxDistance);
+                    ctx.strokeStyle = config.lineColor.replace('0.3', opacity * 0.3);
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(dots[i].x, dots[i].y);
+                    ctx.lineTo(dots[j].x, dots[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+    
+    
+    function drawMouseConnections() {
+    for (let dot of dots) {
+        const dx = mouse.x - dot.x;
+        const dy = mouse.y - dot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < config.mouseRadius) {
+            const opacity = 1 - (distance / config.mouseRadius);
+            ctx.strokeStyle = `rgba(59, 130, 246, ${opacity * 0.5})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(dot.x, dot.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+            
+           
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, config.dotSize * (1 + opacity * 0.5), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(59, 130, 246, ${opacity * 0.8})`;
+            ctx.fill();
+        }
+    }
+}
+
+    
+   
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        
+        for (let dot of dots) {
+            dot.update();
+            dot.draw();
+        }
+        
+        
+        drawConnections();
+        drawMouseConnections();
+        
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    
+    window.addEventListener('resize', () => {
+        initCanvas();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+    
+    
+    initCanvas();
+    animate();
+    
+    
+    window.addEventListener('beforeunload', () => {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+    });
+})();
+</script>
+
+{% endblock %}
