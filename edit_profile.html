@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - Skill Swap Platform{% endblock %}
+
+{% block content %}
+<canvas id="dotsCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-user-edit me-2"></i>Edit Profile
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ user.name or '' }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Location</label>
+                                <input type="text" class="form-control" id="location" name="location" 
+                                       value="{{ user.location or '' }}" placeholder="City, Country">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="profile_photo" class="form-label">Profile Photo</label>
+                        <input type="file" class="form-control" id="profile_photo" name="profile_photo" 
+                               accept="image/*">
+                        <div class="form-text">Upload a profile photo (PNG, JPG, JPEG, GIF)</div>
+                        {% if user.profile_photo %}
+                        <div class="mt-2">
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_photo) }}" 
+                                 alt="Current Photo" class="profile-photo-small">
+                            <small class="text-muted ms-2">Current photo</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Availability</label>
+                        <div class="row">
+                            {% for time_slot in ['Weekday Mornings', 'Weekday Afternoons', 'Weekday Evenings', 'Weekend Mornings', 'Weekend Afternoons', 'Weekend Evenings'] %}
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="availability" 
+                                           value="{{ time_slot }}" id="availability_{{ loop.index }}"
+                                           {% if time_slot in user.availability %}checked{% endif %}>
+                                    <label class="form-check-label" for="availability_{{ loop.index }}">
+                                        {{ time_slot }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_public" id="is_public"
+                                   {% if user.is_public %}checked{% endif %}>
+                            <label class="form-check-label" for="is_public">
+                                Make my profile public (visible to other users)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <label for="offered_skills" class="form-label">Skills I Can Offer</label>
+                        <textarea class="form-control" id="offered_skills" name="offered_skills" rows="3"
+                                  placeholder="Enter skills separated by commas (e.g., Python, Web Design, Guitar)">{{ skills.offered | join(', ') if skills.offered else '' }}</textarea>
+                        <div class="form-text">List the skills you can teach or help others with</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="wanted_skills" class="form-label">Skills I Want to Learn</label>
+                        <textarea class="form-control" id="wanted_skills" name="wanted_skills" rows="3"
+                                  placeholder="Enter skills separated by commas (e.g., Photography, Spanish, Cooking)">{{ skills.wanted | join(', ') if skills.wanted else '' }}</textarea>
+                        <div class="form-text">List the skills you'd like to learn from others</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('profile') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Profile
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+(function() {
+    const canvas = document.getElementById('dotsCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let dots = [];
+    let mouse = { x: 0, y: 0 };
+    let animationId;
+    
+    
+    const config = {
+        dotCount: 80,
+        maxDistance: 120,
+        dotSize: 2,
+        dotColor: 'rgba(59, 130, 246, 0.6)',
+        lineColor: 'rgba(59, 130, 246, 0.3)',
+        mouseRadius: 150,
+        speed: 0.5
+    };
+    
+    
+    class Dot {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * config.speed;
+            this.vy = (Math.random() - 0.5) * config.speed;
+            this.radius = config.dotSize;
+        }
+        
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            
+           
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+        }
+        
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = config.dotColor;
+            ctx.fill();
+        }
+    }
+    
+    
+    function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        
+        dots = [];
+        for (let i = 0; i < config.dotCount; i++) {
+            dots.push(new Dot());
+        }
+    }
+    
+   
+    function drawConnections() {
+        for (let i = 0; i < dots.length; i++) {
+            for (let j = i + 1; j < dots.length; j++) {
+                const dx = dots[i].x - dots[j].x;
+                const dy = dots[i].y - dots[j].y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < config.maxDistance) {
+                    const opacity = 1 - (distance / config.maxDistance);
+                    ctx.strokeStyle = config.lineColor.replace('0.3', opacity * 0.3);
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(dots[i].x, dots[i].y);
+                    ctx.lineTo(dots[j].x, dots[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+    
+    
+    function drawMouseConnections() {
+    for (let dot of dots) {
+        const dx = mouse.x - dot.x;
+        const dy = mouse.y - dot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < config.mouseRadius) {
+            const opacity = 1 - (distance / config.mouseRadius);
+            ctx.strokeStyle = `rgba(59, 130, 246, ${opacity * 0.5})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(dot.x, dot.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+            
+           
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, config.dotSize * (1 + opacity * 0.5), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(59, 130, 246, ${opacity * 0.8})`;
+            ctx.fill();
+        }
+    }
+}
+
+    
+   
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        
+        for (let dot of dots) {
+            dot.update();
+            dot.draw();
+        }
+        
+        drawConnections();
+        drawMouseConnections();
+        
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    
+    window.addEventListener('resize', () => {
+        initCanvas();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+    
+    
+    initCanvas();
+    animate();
+    
+    
+    window.addEventListener('beforeunload', () => {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+    });
+})();
+</script>
+
+{% endblock %}
