@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Animated Dots Background -->
+<canvas id="dotsCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="hero-section text-center py-5 mb-4">
+            <h1 class="display-4 mb-3">Welcome to SkillCircle</h1>
+            <p class="lead mb-4">Share your skills, learn new ones, and build meaningful connections with people in your community.</p>
+            
+            {% if not session.user_id %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-md-2">Get Started</a>
+                <a href="{{ url_for('browse') }}" class="btn btn-outline-secondary btn-lg">Browse Skills</a>
+            </div>
+            {% else %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="{{ url_for('browse') }}" class="btn btn-primary btn-lg me-md-2">Find Skills</a>
+                <a href="{{ url_for('edit_profile') }}" class="btn btn-outline-secondary btn-lg">Update Profile</a>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if session.user_id and recent_swaps %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for swap in recent_swaps %}
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <div>
+                        <strong>{{ swap.offered_skill }}</strong> ↔ <strong>{{ swap.wanted_skill }}</strong>
+                        <br>
+                        <small class="text-muted">{{ swap.created_at.strftime('%B %d, %Y') }}</small>
+                    </div>
+                    <span class="badge 
+                        {% if swap.status == 'pending' %}bg-warning{% endif %}
+                        {% if swap.status == 'accepted' %}bg-success{% endif %}
+                        {% if swap.status == 'rejected' %}bg-danger{% endif %}
+                        {% if swap.status == 'completed' %}bg-info{% endif %}">
+                        {{ swap.status.title() }}
+                    </span>
+                </div>
+                {% endfor %}
+                
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('swap_requests') }}" class="btn btn-outline-primary btn-sm">View All Swaps</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>How It Works
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-start mb-3">
+                    <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <i class="fas fa-user-plus text-white"></i>
+                    </div>
+                    <div>
+                        <h6>Create Your Profile</h6>
+                        <small class="text-muted">List your skills and what you want to learn</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start mb-3">
+                    <div class="bg-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <i class="fas fa-search text-white"></i>
+                    </div>
+                    <div>
+                        <h6>Find Skills</h6>
+                        <small class="text-muted">Browse and search for people with skills you need</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start mb-3">
+                    <div class="bg-info rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <i class="fas fa-handshake text-white"></i>
+                    </div>
+                    <div>
+                        <h6>Make Connections</h6>
+                        <small class="text-muted">Send swap requests and start learning together</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start">
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                        <i class="fas fa-star text-white"></i>
+                    </div>
+                    <div>
+                        <h6>Rate & Review</h6>
+                        <small class="text-muted">Build trust with ratings and feedback</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if not session.user_id %}
+        <div class="card mt-4">
+            <div class="card-body text-center">
+                <h5 class="card-title">Join Our Community</h5>
+                <p class="card-text">Connect with talented individuals and expand your skillset today.</p>
+                <a href="{{ url_for('register') }}" class="btn btn-primary">Sign Up Now</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+ 
+(function() {
+    const canvas = document.getElementById('dotsCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let dots = [];
+    let mouse = { x: 0, y: 0 };
+    let animationId;
+    
+   
+    const config = {
+        dotCount: 100,
+        maxDistance: 120,
+        dotSize: 2,
+        dotColor: 'rgba(59, 130, 246, 0.6)',
+        lineColor: 'rgba(59, 130, 246, 0.3)',
+        mouseRadius: 150,
+        speed: 0.5
+    };
+    
+    class Dot {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * config.speed;
+            this.vy = (Math.random() - 0.5) * config.speed;
+            this.radius = config.dotSize;
+        }
+        
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+        }
+        
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = config.dotColor;
+            ctx.fill();
+        }
+    }
+    
+    function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        dots = [];
+        for (let i = 0; i < config.dotCount; i++) {
+            dots.push(new Dot());
+        }
+    }
+    
+    function drawConnections() {
+        for (let i = 0; i < dots.length; i++) {
+            for (let j = i + 1; j < dots.length; j++) {
+                const dx = dots[i].x - dots[j].x;
+                const dy = dots[i].y - dots[j].y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < config.maxDistance) {
+                    const opacity = 1 - (distance / config.maxDistance);
+                    ctx.strokeStyle = config.lineColor.replace('0.3', opacity * 0.3);
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(dots[i].x, dots[i].y);
+                    ctx.lineTo(dots[j].x, dots[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+    
+    function drawMouseConnections() {
+        for (let dot of dots) {
+            const dx = mouse.x - dot.x;
+            const dy = mouse.y - dot.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < config.mouseRadius) {
+                const opacity = 1 - (distance / config.mouseRadius);
+                ctx.strokeStyle = `rgba(59, 130, 246, ${opacity * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(dot.x, dot.y);
+                ctx.lineTo(mouse.x, mouse.y);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(dot.x, dot.y, config.dotSize * (1 + opacity * 0.5), 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(59, 130, 246, ${opacity * 0.8})`;
+                ctx.fill();
+            }
+        }
+    }
+    
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+
+        for (let dot of dots) {
+            dot.update();
+            dot.draw();
+        }
+        
+        drawConnections();
+        drawMouseConnections();
+        
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    window.addEventListener('resize', () => {
+        initCanvas();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+    
+    initCanvas();
+    animate();
+    
+     
+    window.addEventListener('beforeunload', () => {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+    });
+})();
+</script>
+{% endblock %}
