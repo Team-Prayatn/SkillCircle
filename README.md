@@ -4,6 +4,7 @@ Overview:
 Develop a Skill Swap Platform — a mini application that enables users to list their skills and
 request others in return
 
+Demo Video of the project - https://drive.google.com/drive/folders/1iYxMIMtF8WORXbGuOWSseAFw0xFP8IuO
 
 Features:
 Basic info: Name, location (optional), profile photo (optional)
